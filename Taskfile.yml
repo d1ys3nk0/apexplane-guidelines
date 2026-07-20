@@ -13,7 +13,7 @@ tasks:
       - task --list
 
   check:
-    desc: Run repository checks, or check target drift with arguments after `--`.
+    desc: Run repository checks, or check one or more target repositories with arguments after `--`.
     cmds:
       - >-
         bash -c 'if [ "$#" -gt 0 ]; then exec {{.PYTHON}} -m apg.module_sync check "$@"; fi'
@@ -44,20 +44,20 @@ tasks:
         printf "files:\n  - editorconfig:.editorconfig\n" > "$smoke_dir/modules/baseline/manifest.yml" &&
         printf "root = true\n" > "$smoke_dir/modules/baseline/files/editorconfig" &&
         printf "modules:\n  - name: baseline\n    vars: {}\nproject:\n  name: smoke\nrealms: []\nenvironments: []\nservices: []\n" > "$smoke_dir/target/apg.yml" &&
-        uv tool run --from ./dist/*.whl apg --version &&
-        uv tool run --from ./dist/*.whl apg sync --modules-root "$smoke_dir/modules" "$smoke_dir/target" &&
-        uv tool run --from ./dist/*.whl apg check --modules-root "$smoke_dir/modules" "$smoke_dir/target";
+        uv tool run --refresh --from ./dist/*.whl apg --version &&
+        uv tool run --refresh --from ./dist/*.whl apg sync --modules-root "$smoke_dir/modules" "$smoke_dir/target" &&
+        uv tool run --refresh --from ./dist/*.whl apg check --modules-root "$smoke_dir/modules" "$smoke_dir/target";
         fi'
         --
         {{.CLI_ARGS}}
 
   sync:
-    desc: Sync managed files with `task sync -- --modules-root <path> <target>`.
+    desc: Sync managed files with `task sync -- --modules-root <path> <target> [<target>...]`.
     cmds:
       - '{{.PYTHON}} -m apg.module_sync sync {{.CLI_ARGS}}'
 
   verify:
-    desc: Verify drift and trusted module linters with `task verify -- --modules-root <path> <target>`.
+    desc: Verify drift and trusted module linters with `task verify -- --modules-root <path> <target> [<target>...]`.
     cmds:
       - '{{.PYTHON}} -m apg.module_sync verify {{.CLI_ARGS}}'
 

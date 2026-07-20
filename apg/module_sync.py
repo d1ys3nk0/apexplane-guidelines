@@ -20,11 +20,11 @@ import jinja2
 import yaml
 from jinja2.sandbox import SandboxedEnvironment
 
-from apg.manifest import MANIFEST_FILENAME, Manifest, ManifestError, load_manifest
+from apg.manifest import CONFIG_FILENAME, Manifest, ManifestError, load_manifest
 
 
 MODULE_MANIFEST_FILENAME = "manifest.yml"
-MANAGED_INDEX_FILENAME = ".apg"
+MANAGED_MANIFEST_FILENAME = "apg-manifest.json"
 DEFAULT_LINTER_TIMEOUT = 30.0
 MODULE_KEYS = frozenset({"files", "templates", "linters", "vars"})
 
@@ -393,7 +393,7 @@ def compose_target_state(
     linters: list[tuple[str, str]] = []
     seen_linters: set[tuple[str, str]] = set()
     seen_destinations: set[str] = set()
-    source = MANIFEST_FILENAME
+    source = CONFIG_FILENAME
 
     for module_ref in manifest.modules:
         module = load_module(modules_root, module_ref.name)
@@ -449,9 +449,9 @@ def compose_target_state(
                     )
                 )
 
-    if MANAGED_INDEX_FILENAME in seen_destinations:
+    if MANAGED_MANIFEST_FILENAME in seen_destinations:
         raise ModuleError(
-            f"{MANAGED_INDEX_FILENAME!r} is reserved by APG and cannot be managed by a module"
+            f"{MANAGED_MANIFEST_FILENAME!r} is reserved by APG and cannot be managed by a module"
         )
     managed_content = {
         item.destination: {
@@ -462,7 +462,7 @@ def compose_target_state(
     }
     desired.append(
         DesiredFile(
-            destination=MANAGED_INDEX_FILENAME,
+            destination=MANAGED_MANIFEST_FILENAME,
             content=(
                 json.dumps(
                     {"files": managed_content},
@@ -513,7 +513,7 @@ def _set_executable(path: Path, executable: bool) -> None:
 
 
 def _load_managed_index(target: Path) -> dict[str, tuple[str, bool] | None]:
-    index = target / MANAGED_INDEX_FILENAME
+    index = target / MANAGED_MANIFEST_FILENAME
     if not index.exists():
         return {}
     if index.is_symlink() or not index.is_file():
@@ -534,7 +534,7 @@ def _load_managed_index(target: Path) -> dict[str, tuple[str, bool] | None]:
                 raise ModuleError(
                     f"non-canonical path in legacy managed index: {line!r}"
                 )
-            if normalized != MANAGED_INDEX_FILENAME:
+            if normalized != MANAGED_MANIFEST_FILENAME:
                 result[normalized] = None
         return result
     if (
@@ -554,7 +554,7 @@ def _load_managed_index(target: Path) -> dict[str, tuple[str, bool] | None]:
         ):
             raise ModuleError(f"invalid managed index entry: {path!r}")
         normalized = _canonical_relative_path(path)
-        if normalized != path or normalized == MANAGED_INDEX_FILENAME:
+        if normalized != path or normalized == MANAGED_MANIFEST_FILENAME:
             raise ModuleError(f"invalid managed index path: {path!r}")
         digest = metadata["sha256"]
         if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
@@ -728,7 +728,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     for command in ("check", "verify", "sync"):
         command_parser = subparsers.add_parser(command)
         command_parser.add_argument("--modules-root", required=True, type=Path)
-        command_parser.add_argument("target", type=Path)
+        command_parser.add_argument("targets", nargs="+", type=Path)
         if command == "verify":
             command_parser.add_argument(
                 "--linter-timeout", type=float, default=DEFAULT_LINTER_TIMEOUT
@@ -739,28 +739,38 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    exit_code = 0
     try:
         modules_root = resolve_modules_root(args.modules_root)
-        if args.command == "check":
-            findings = check_target(args.target, modules_root)
-            _print_findings(findings)
-            return 1 if findings else 0
-        if args.command == "verify":
-            if args.linter_timeout <= 0:
-                raise ModuleError("--linter-timeout must be greater than zero")
-            findings = verify_target(
-                args.target, modules_root, timeout=args.linter_timeout
-            )
-            _print_findings(findings)
-            return 1 if findings else 0
-        if args.command == "sync":
-            findings = sync_target(args.target, modules_root)
-            _print_findings(findings)
-            return 0
-    except (ManifestError, ModuleError) as exc:
+    except ModuleError as exc:
         print(f"apg: {exc}", file=sys.stderr)
         return 2
-    return 2
+
+    if args.command == "verify" and args.linter_timeout <= 0:
+        print("apg: --linter-timeout must be greater than zero", file=sys.stderr)
+        return 2
+
+    for target in args.targets:
+        if len(args.targets) > 1:
+            print(f"\n==> {target}")
+        try:
+            if args.command == "check":
+                findings = check_target(target, modules_root)
+                exit_code = max(exit_code, 1 if findings else 0)
+            elif args.command == "verify":
+                findings = verify_target(
+                    target, modules_root, timeout=args.linter_timeout
+                )
+                exit_code = max(exit_code, 1 if findings else 0)
+            else:
+                findings = sync_target(target, modules_root)
+            _print_findings(findings)
+        except (ManifestError, ModuleError) as exc:
+            prefix = f"{target}: " if len(args.targets) > 1 else ""
+            print(f"apg: {prefix}{exc}", file=sys.stderr)
+            exit_code = 2
+
+    return exit_code
 
 
 if __name__ == "__main__":

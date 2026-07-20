@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 
-MANIFEST_FILENAME = "apg.yml"
+CONFIG_FILENAME = "apg.yml"
 OBSOLETE_CONFIG_FILENAME = "manifest.yml"
 ROOT_KEYS = frozenset(
     {"modules", "project", "realms", "environments", "services", "ansible", "taskfiles"}
@@ -516,7 +516,7 @@ def _parse_taskfiles(value: Any, source: str) -> tuple[Taskfile, ...]:
     return tuple(taskfiles)
 
 
-def validate_manifest(raw: Any, *, source: str = MANIFEST_FILENAME) -> Manifest:
+def validate_manifest(raw: Any, *, source: str = CONFIG_FILENAME) -> Manifest:
     manifest = _expect_mapping(raw, source)
     if "profile" in manifest:
         raise ManifestError(f"{source}.profile: obsolete field; use modules: [...]")
@@ -569,8 +569,8 @@ def load_manifest(target: Path) -> Manifest:
     obsolete_path = target / OBSOLETE_CONFIG_FILENAME
     if obsolete_path.exists():
         raise ManifestError(
-            f"{obsolete_path}: obsolete APG target config is not supported; rename root {OBSOLETE_CONFIG_FILENAME} to {MANIFEST_FILENAME}"
+            f"{obsolete_path}: obsolete APG target config is not supported; rename root {OBSOLETE_CONFIG_FILENAME} to {CONFIG_FILENAME}"
         )
     return validate_manifest(
-        _load_yaml(target / MANIFEST_FILENAME), source=str(target / MANIFEST_FILENAME)
+        _load_yaml(target / CONFIG_FILENAME), source=str(target / CONFIG_FILENAME)
     )

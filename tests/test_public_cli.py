@@ -26,7 +26,7 @@ class PublicCliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), f"module_sync.py {expected}")
 
-    def test_external_registry_sync_then_check(self) -> None:
+    def test_external_registry_sync_then_check_for_multiple_targets(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             modules_root = root / "modules"
@@ -39,8 +39,14 @@ class PublicCliTest(unittest.TestCase):
             )
             target = root / "target"
             target.mkdir()
+            second_target = root / "second-target"
+            second_target.mkdir()
             (target / "apg.yml").write_text(
                 "modules:\n  - name: repository\n    vars: {}\nproject:\n  name: test\nrealms: []\nenvironments: []\nservices: []\n",
+                encoding="utf-8",
+            )
+            (second_target / "apg.yml").write_text(
+                "modules:\n  - name: repository\n    vars: {}\nproject:\n  name: second-test\nrealms: []\nenvironments: []\nservices: []\n",
                 encoding="utf-8",
             )
             sync = subprocess.run(
@@ -52,6 +58,7 @@ class PublicCliTest(unittest.TestCase):
                     "--modules-root",
                     str(modules_root),
                     str(target),
+                    str(second_target),
                 ],
                 check=False,
                 capture_output=True,
@@ -66,6 +73,7 @@ class PublicCliTest(unittest.TestCase):
                     "--modules-root",
                     str(modules_root),
                     str(target),
+                    str(second_target),
                 ],
                 check=False,
                 capture_output=True,

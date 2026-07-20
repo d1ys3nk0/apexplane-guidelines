@@ -54,9 +54,9 @@ jobs:
           printf 'files:\n  - editorconfig:.editorconfig\n' > "$smoke_dir/modules/baseline/manifest.yml"
           printf 'root = true\n' > "$smoke_dir/modules/baseline/files/editorconfig"
           printf 'modules:\n  - name: baseline\n    vars: {}\nproject:\n  name: smoke\nrealms: []\nenvironments: []\nservices: []\n' > "$smoke_dir/target/apg.yml"
-          uv tool run --from ./dist/*.whl apg --version
-          uv tool run --from ./dist/*.whl apg sync --modules-root "$smoke_dir/modules" "$smoke_dir/target"
-          uv tool run --from ./dist/*.whl apg check --modules-root "$smoke_dir/modules" "$smoke_dir/target"
+          uv tool run --refresh --from ./dist/*.whl apg --version
+          uv tool run --refresh --from ./dist/*.whl apg sync --modules-root "$smoke_dir/modules" "$smoke_dir/target"
+          uv tool run --refresh --from ./dist/*.whl apg check --modules-root "$smoke_dir/modules" "$smoke_dir/target"
 
   publish-image:
     needs: check

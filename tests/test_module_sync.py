@@ -11,7 +11,7 @@ from pathlib import Path
 
 from apg.manifest import ManifestError
 from apg.module_sync import (
-    MANAGED_INDEX_FILENAME,
+    MANAGED_MANIFEST_FILENAME,
     ModuleError,
     check_target as _check_target,
     compose_target_state as _compose_target_state,
@@ -1056,10 +1056,10 @@ services: []
             write(repo / "apg.yml", manifest_with_python())
             sync_target(repo, self.modules_root)
 
-            managed = (repo / MANAGED_INDEX_FILENAME).read_text(encoding="utf-8")
+            managed = (repo / MANAGED_MANIFEST_FILENAME).read_text(encoding="utf-8")
             entries = json.loads(managed)["files"]
             self.assertEqual(list(entries), sorted(entries))
-            self.assertEqual(MANAGED_INDEX_FILENAME, ".apg")
+            self.assertEqual(MANAGED_MANIFEST_FILENAME, "apg-manifest.json")
             self.assertIn(".editorconfig", entries)
             self.assertIn(".python-version", entries)
             self.assertIn("Taskfile.yml", entries)
@@ -1077,7 +1077,7 @@ services: []
             self.assertEqual(
                 (repo / ".managed").read_text(encoding="utf-8"), "obsolete listing\n"
             )
-            self.assertTrue((repo / ".apg").is_file())
+            self.assertTrue((repo / "apg-manifest.json").is_file())
             self.assertNotIn(
                 ("changed", ".managed"),
                 {
@@ -1109,13 +1109,13 @@ services: []
         )
         desired, _ = compose_target_state(target_manifest, self.modules_root)
         index_entry = next(
-            item for item in desired if item.destination == MANAGED_INDEX_FILENAME
+            item for item in desired if item.destination == MANAGED_MANIFEST_FILENAME
         )
         listed = json.loads(index_entry.content)["files"]
         expected = sorted(
             item.destination
             for item in desired
-            if item.destination != MANAGED_INDEX_FILENAME
+            if item.destination != MANAGED_MANIFEST_FILENAME
         )
         self.assertEqual(list(listed), expected)
 
@@ -1123,11 +1123,11 @@ services: []
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             write(repo / "apg.yml", manifest("repository"))
-            write(repo / MANAGED_INDEX_FILENAME, "stale listing\n")
+            write(repo / MANAGED_MANIFEST_FILENAME, "stale listing\n")
 
             findings = check_target(repo, self.modules_root)
             self.assertIn(
-                ("changed", MANAGED_INDEX_FILENAME),
+                ("changed", MANAGED_MANIFEST_FILENAME),
                 {(finding.kind, finding.path) for finding in findings},
             )
 
@@ -1135,12 +1135,12 @@ services: []
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             write(repo / "apg.yml", manifest("repository"))
-            write(repo / MANAGED_INDEX_FILENAME, "stale listing\n")
+            write(repo / MANAGED_MANIFEST_FILENAME, "stale listing\n")
 
             sync_target(repo, self.modules_root)
 
             self.assertEqual(check_target(repo, self.modules_root), ())
-            managed = (repo / MANAGED_INDEX_FILENAME).read_text(encoding="utf-8")
+            managed = (repo / MANAGED_MANIFEST_FILENAME).read_text(encoding="utf-8")
             self.assertIn(".editorconfig", json.loads(managed)["files"])
 
     def test_sync_writes_versionless_managed_index(self) -> None:
@@ -1151,7 +1151,7 @@ services: []
             sync_target(repo, self.modules_root)
 
             managed = json.loads(
-                (repo / MANAGED_INDEX_FILENAME).read_text(encoding="utf-8")
+                (repo / MANAGED_MANIFEST_FILENAME).read_text(encoding="utf-8")
             )
             self.assertEqual(set(managed), {"files"})
             self.assertEqual(check_target(repo, self.modules_root), ())
@@ -1161,7 +1161,7 @@ services: []
             repo = Path(tmp)
             write(repo / "apg.yml", manifest("repository"))
             write(
-                repo / MANAGED_INDEX_FILENAME,
+                repo / MANAGED_MANIFEST_FILENAME,
                 json.dumps({"version": 1, "files": {}}),
             )
 
@@ -1177,7 +1177,7 @@ services: []
             write(module_root / "bad" / "files" / "source", "x\n")
             write(
                 module_root / "bad" / "manifest.yml",
-                f"files:\n  - source:{MANAGED_INDEX_FILENAME}\n",
+                f"files:\n  - source:{MANAGED_MANIFEST_FILENAME}\n",
             )
             write(repo / "apg.yml", manifest("bad"))
 
@@ -1193,7 +1193,7 @@ services: []
             write(module_root / "bad" / "files" / "source", "x\n")
             write(
                 module_root / "bad" / "manifest.yml",
-                "files:\n  - source:./.apg\n",
+                "files:\n  - source:./apg-manifest.json\n",
             )
             write(repo / "apg.yml", manifest("bad"))
 
@@ -1298,7 +1298,7 @@ services: []
             module_root = Path(tmp) / "modules"
             make_module(module_root, "empty")
             write(repo / "apg.yml", manifest("empty"))
-            write(repo / ".apg", ".apg\nold.txt\n")
+            write(repo / "apg-manifest.json", "apg-manifest.json\nold.txt\n")
             write(repo / "old.txt", "unknown original content\n")
 
             with self.assertRaisesRegex(ModuleError, "stale-modified: old.txt"):

@@ -64,7 +64,7 @@ environments: []
 services: []
 ```
 
-Modules compose in this order. A destination may be managed by only one selected module. APG writes `.apg` in the target to record managed paths and content hashes; do not edit or declare it in a module. When a previously managed path is removed from the selected modules, `check` reports it and `sync` deletes it only if it is still a regular, unmodified file. APG refuses unsafe or modified stale paths.
+Modules compose in this order. A destination may be managed by only one selected module. APG writes `apg-manifest.json` in the target to record managed paths and content hashes; do not edit or declare it in a module. When a previously managed path is removed from the selected modules, `check` reports it and `sync` deletes it only if it is still a regular, unmodified file. APG refuses unsafe or modified stale paths.
 
 ## Local workflow
 
@@ -76,7 +76,15 @@ apg verify --linter-timeout 30 --modules-root ../apg-modules .
 apg sync --modules-root ../apg-modules .
 ```
 
-`check` reports managed-file drift, `verify` also runs selected module linters, and `sync` updates managed files. Review `sync` changes before committing. Registry authors can iterate by editing the registry and running the same commands against a disposable or local target.
+`check` reports managed-file drift, `verify` also runs selected module linters, and `sync` updates managed files. Each command accepts one or more target repositories, so a control-plane workspace can run the same operation across an explicit batch:
+
+```sh
+apg check --modules-root apg/modules children/repository-a children/repository-b
+apg sync --modules-root apg/modules children/repository-a children/repository-b
+apg verify --modules-root apg/modules children/repository-a children/repository-b
+```
+
+Review `sync` changes before committing. Registry authors can iterate by editing the registry and running the same commands against a disposable or local target.
 
 ## Docker
 

@@ -21,12 +21,12 @@ Keep each module in its own `<registry>/<module-name>/` directory with a `manife
 Test a module locally against a target repository that has an `apg.yml` selecting it and providing `vars`. Run these commands from that target:
 
 ```sh
-apg check --modules-root <registry-path> .
-apg verify --modules-root <registry-path> .
-apg sync --modules-root <registry-path> .
+apg check --modules-root <registry-path> . [<target>...]
+apg verify --modules-root <registry-path> . [<target>...]
+apg sync --modules-root <registry-path> . [<target>...]
 ```
 
-`sync` writes target files; inspect and commit the resulting target changes separately from registry changes. Keep registry changes reusable across targets and keep target-specific application behavior in the target repository.
+`sync` writes target files; all operations accept one or more target paths. Inspect and commit the resulting target changes separately from registry changes. Keep registry changes reusable across targets and keep target-specific application behavior in the target repository.
 
 ## Conduct
 
