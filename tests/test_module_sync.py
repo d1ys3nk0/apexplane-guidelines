@@ -1143,6 +1143,31 @@ services: []
             managed = (repo / MANAGED_INDEX_FILENAME).read_text(encoding="utf-8")
             self.assertIn(".editorconfig", json.loads(managed)["files"])
 
+    def test_sync_writes_versionless_managed_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            write(repo / "apg.yml", manifest("repository"))
+
+            sync_target(repo, self.modules_root)
+
+            managed = json.loads(
+                (repo / MANAGED_INDEX_FILENAME).read_text(encoding="utf-8")
+            )
+            self.assertEqual(set(managed), {"files"})
+            self.assertEqual(check_target(repo, self.modules_root), ())
+
+    def test_versioned_managed_index_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            write(repo / "apg.yml", manifest("repository"))
+            write(
+                repo / MANAGED_INDEX_FILENAME,
+                json.dumps({"version": 1, "files": {}}),
+            )
+
+            with self.assertRaisesRegex(ModuleError, "unsupported managed index"):
+                check_target(repo, self.modules_root)
+
     def test_module_cannot_manage_reserved_index_filename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"

@@ -25,7 +25,6 @@ from apg.manifest import MANIFEST_FILENAME, Manifest, ManifestError, load_manife
 
 MODULE_MANIFEST_FILENAME = "manifest.yml"
 MANAGED_INDEX_FILENAME = ".apg"
-MANAGED_INDEX_VERSION = 1
 DEFAULT_LINTER_TIMEOUT = 30.0
 MODULE_KEYS = frozenset({"files", "templates", "linters", "vars"})
 
@@ -466,7 +465,7 @@ def compose_target_state(
             destination=MANAGED_INDEX_FILENAME,
             content=(
                 json.dumps(
-                    {"version": MANAGED_INDEX_VERSION, "files": managed_content},
+                    {"files": managed_content},
                     indent=2,
                     sort_keys=True,
                 )
@@ -540,8 +539,8 @@ def _load_managed_index(target: Path) -> dict[str, tuple[str, bool] | None]:
         return result
     if (
         not isinstance(raw, Mapping)
-        or raw.get("version") != MANAGED_INDEX_VERSION
-        or not isinstance(raw.get("files"), Mapping)
+        or set(raw) != {"files"}
+        or not isinstance(raw["files"], Mapping)
     ):
         raise ModuleError(f"unsupported managed index format: {index}")
     result = {}
