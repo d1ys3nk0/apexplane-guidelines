@@ -1,0 +1,117 @@
+---
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          version: "0.6.14"
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+      - name: Check formatting
+        run: uv run ruff format --check .
+      - name: Lint
+        run: uv run ruff check .
+      - name: Test
+        run: uv run python -m unittest discover -s tests
+      - name: Scan secrets
+        run: git ls-files --cached --others --exclude-standard -z | xargs -0 uv run detect-secrets-hook --baseline .secrets.baseline
+      - name: Audit runtime dependencies
+        shell: bash
+        run: |
+          audit_requirements=$(mktemp)
+          trap 'rm -f "$audit_requirements"' EXIT
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file "$audit_requirements" >/dev/null
+          uv run pip-audit --requirement "$audit_requirements" --disable-pip
+      - name: Build distributions
+        run: uv build
+      - name: Check distribution metadata
+        run: uv run twine check dist/*
+      - name: Smoke-test installed wheel
+        shell: bash
+        run: |
+          smoke_dir=$(mktemp -d)
+          trap 'rm -rf "$smoke_dir"' EXIT
+          mkdir -p "$smoke_dir/modules/baseline/files" "$smoke_dir/target"
+          printf 'files:\n  - editorconfig:.editorconfig\n' > "$smoke_dir/modules/baseline/manifest.yml"
+          printf 'root = true\n' > "$smoke_dir/modules/baseline/files/editorconfig"
+          printf 'modules:\n  - name: baseline\n    vars: {}\nproject:\n  name: smoke\nrealms: []\nenvironments: []\nservices: []\n' > "$smoke_dir/target/apg.yml"
+          uv tool run --from ./dist/*.whl apg --version
+          uv tool run --from ./dist/*.whl apg sync --modules-root "$smoke_dir/modules" "$smoke_dir/target"
+          uv tool run --from ./dist/*.whl apg check --modules-root "$smoke_dir/modules" "$smoke_dir/target"
+
+  publish-image:
+    needs: check
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Select publishable reference
+        id: release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF_NAME" =~ ^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check out source
+        if: steps.release.outputs.publish == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - name: Set up QEMU
+        if: steps.release.outputs.publish == 'true'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+        with:
+          image: tonistiigi/binfmt:qemu-v8.1.5@sha256:2d2918e86e5327d0661f7083d67a95280b0f7be8f77ed79a8418f81d7d90ce6f
+          platforms: arm64
+      - name: Set up Buildx
+        if: steps.release.outputs.publish == 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+      - name: Log in to GHCR
+        if: steps.release.outputs.publish == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image metadata
+        if: steps.release.outputs.publish == 'true'
+        id: metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        with:
+          images: ghcr.io/d1ys3nk0/apexplane-guidelines
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=ref,event=tag
+      - name: Build and publish image
+        if: steps.release.outputs.publish == 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}

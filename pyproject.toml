@@ -1,0 +1,53 @@
+[project]
+name = "apexplane-guidelines"
+version = "0.1.0"
+description = "Composable repository guidelines and managed-file synchronization"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "APG Contributors" }]
+keywords = ["repository", "standards", "templates", "synchronization"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+  "jinja2>=3.1.0",
+  "pyyaml>=6.0.0",
+]
+
+[project.scripts]
+apg = "apg.module_sync:main"
+
+[project.urls]
+Homepage = "https://github.com/d1ys3nk0/apexplane-guidelines"
+Documentation = "https://github.com/d1ys3nk0/apexplane-guidelines/blob/main/README.md"
+Issues = "https://github.com/d1ys3nk0/apexplane-guidelines/issues"
+Security = "https://github.com/d1ys3nk0/apexplane-guidelines/blob/main/SECURITY.md"
+Source = "https://github.com/d1ys3nk0/apexplane-guidelines"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["apg"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/apg", "/tests", "/README.md", "/LICENSE", "/CONTRIBUTING.md", "/SECURITY.md", "/CODE_OF_CONDUCT.md", "/Taskfile.yml", "/uv.lock", "/.secrets.baseline"]
+
+[dependency-groups]
+dev = [
+  "detect-secrets>=1.5.0",
+  "pip-audit>=2.9.0",
+  "ruff>=0.11.0",
+  "twine>=6.1.0",
+]
+
+[tool.uv]
+default-groups = ["dev"]

@@ -1,0 +1,153 @@
+---
+
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/d1ys3nk0/apexplane-guidelines/main/apg/manifest.schema.yaml
+title: APG Target Config
+type: object
+additionalProperties: false
+required:
+  - modules
+  - project
+  - realms
+  - environments
+  - services
+properties:
+  modules:
+    type: array
+    minItems: 1
+    description: Trusted registry modules composed in declaration order.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - vars
+      properties:
+        name:
+          type: string
+          minLength: 1
+        vars:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+                minLength: 1
+              - type: array
+                items:
+                  type: string
+                  minLength: 1
+              - type: boolean
+          description: Module-specific variables passed to the module's templates. Values are either a non-empty string, a list of non-empty strings, or a boolean; the module manifest schema decides the type.
+  project:
+    type: object
+    additionalProperties: false
+    required:
+      - name
+    properties:
+      name:
+        type: string
+        minLength: 1
+      world:
+        type: string
+        minLength: 1
+      unit:
+        type: string
+        minLength: 1
+  realms:
+    type: array
+    description: Realm names must be unique.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+  environments:
+    type: array
+    description: Environment names must be unique and realm must reference an existing realm.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - realm
+      properties:
+        name:
+          type: string
+          minLength: 1
+        realm:
+          type: string
+          minLength: 1
+  services:
+    type: array
+    description: Service names must be unique.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - kind
+      properties:
+        name:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - web
+            - worker
+            - bot
+            - job
+  ansible:
+    type: object
+    additionalProperties: false
+    required:
+      - python_version
+      - groups
+      - tunnels
+    properties:
+      python_version:
+        type: string
+        minLength: 1
+      groups:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [realm, platform, clusters]
+          properties:
+            realm: {type: string, minLength: 1}
+            platform: {type: string, minLength: 1}
+            clusters:
+              type: array
+              minItems: 1
+              items: {type: string, minLength: 1}
+      tunnels:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [realm, platform, cluster, service]
+          properties:
+            realm: {type: string, minLength: 1}
+            platform: {type: string, minLength: 1}
+            cluster: {type: string, minLength: 1}
+            service: {type: string, minLength: 1}
+  taskfiles:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [name, file]
+      properties:
+        name: {type: string, minLength: 1}
+        file: {type: string, minLength: 1}
+        aliases:
+          type: array
+          items: {type: string, minLength: 1}
+        vars:
+          type: object
+          additionalProperties: {type: string, minLength: 1}

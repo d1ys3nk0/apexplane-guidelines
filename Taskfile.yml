@@ -1,0 +1,75 @@
+---
+
+version: "3"
+
+vars:
+  PYTHON: '{{.PYTHON | default "uv run python"}}'
+  IMAGE: '{{.IMAGE | default "ghcr.io/d1ys3nk0/apexplane-guidelines:local"}}'
+
+tasks:
+  default:
+    desc: List available tasks.
+    cmds:
+      - task --list
+
+  check:
+    desc: Run repository checks, or check target drift with arguments after `--`.
+    cmds:
+      - >-
+        bash -c 'if [ "$#" -gt 0 ]; then exec {{.PYTHON}} -m apg.module_sync check "$@"; fi'
+        --
+        {{.CLI_ARGS}}
+      - >-
+        bash -c 'if [ "$#" -eq 0 ]; then
+        uv run ruff format --check . &&
+        uv run ruff check . &&
+        uv run python -m unittest discover -s tests &&
+        git ls-files --cached --others --exclude-standard -z | xargs -0 uv run detect-secrets-hook --baseline .secrets.baseline &&
+        mkdir -p dist &&
+        find dist -mindepth 1 -maxdepth 1 -type f -delete &&
+        uv build &&
+        uv run twine check dist/* &&
+        audit_requirements=$(mktemp) &&
+        trap "rm -f \"$audit_requirements\"" EXIT &&
+        uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file "$audit_requirements" >/dev/null &&
+        uv run pip-audit --requirement "$audit_requirements" --disable-pip;
+        fi'
+        --
+        {{.CLI_ARGS}}
+      - >-
+        bash -c 'if [ "$#" -eq 0 ]; then
+        smoke_dir=$(mktemp -d) &&
+        trap "rm -rf \"$smoke_dir\"" EXIT &&
+        mkdir -p "$smoke_dir/modules/baseline/files" "$smoke_dir/target" &&
+        printf "files:\n  - editorconfig:.editorconfig\n" > "$smoke_dir/modules/baseline/manifest.yml" &&
+        printf "root = true\n" > "$smoke_dir/modules/baseline/files/editorconfig" &&
+        printf "modules:\n  - name: baseline\n    vars: {}\nproject:\n  name: smoke\nrealms: []\nenvironments: []\nservices: []\n" > "$smoke_dir/target/apg.yml" &&
+        uv tool run --from ./dist/*.whl apg --version &&
+        uv tool run --from ./dist/*.whl apg sync --modules-root "$smoke_dir/modules" "$smoke_dir/target" &&
+        uv tool run --from ./dist/*.whl apg check --modules-root "$smoke_dir/modules" "$smoke_dir/target";
+        fi'
+        --
+        {{.CLI_ARGS}}
+
+  sync:
+    desc: Sync managed files with `task sync -- --modules-root <path> <target>`.
+    cmds:
+      - '{{.PYTHON}} -m apg.module_sync sync {{.CLI_ARGS}}'
+
+  verify:
+    desc: Verify drift and trusted module linters with `task verify -- --modules-root <path> <target>`.
+    cmds:
+      - '{{.PYTHON}} -m apg.module_sync verify {{.CLI_ARGS}}'
+
+  docker-build:
+    desc: Build the local APG container image.
+    cmds:
+      - docker build --tag {{.IMAGE}} .
+
+  docker-run:
+    desc: Run APG with a bind-mounted trusted module registry; set MODULES_ROOT and pass CLI arguments after `--`.
+    cmds:
+      - >-
+        bash -c 'test -n "$1" || { echo "MODULES_ROOT is required" >&2; exit 2; }'
+        -- '{{.MODULES_ROOT}}'
+      - docker run --rm -v "{{.PWD}}:/work" -v "{{.MODULES_ROOT}}:/modules:ro" -w /work {{.IMAGE}} apg {{.CLI_ARGS}}
